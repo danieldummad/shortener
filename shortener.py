@@ -58,7 +58,7 @@ def page(con, message=""):
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SWIFT Shortener</title>
 <body style="font-family:system-ui;max-width:640px;margin:2rem auto;padding:0 1rem">
-<h1>SWIFT Shortener </h1>
+<h1>SWIFT Shortener</h1>
 <form method="post" action="/shorten">
   <input name="url" placeholder="https://example.com/a/very/long/path" style="width:100%;padding:.6rem" required>
   <p><button style="padding:.6rem 1rem">Shorten</button></p>
@@ -108,3 +108,4 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print(f"Running on http://localhost:{PORT}  (Ctrl+C to stop)")
     HTTPServer(("", PORT), Handler).serve_forever()
+  
