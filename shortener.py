@@ -12,6 +12,7 @@ Open:  http://localhost:8000
 """
 import hashlib
 import html
+import json
 import os
 import sqlite3
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -49,6 +50,30 @@ def is_valid(url):
     return parts.scheme in ("http", "https") and bool(parts.netloc)
 
 
+def redirect_page(url):
+    """Client-side redirect: the browser gets a normal page, and JavaScript sends the visitor on."""
+    shown = html.escape(url)
+    js_url = json.dumps(url).replace("</", "<\\/")
+    return f"""<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redirecting...</title>
+<body style="font-family:system-ui;max-width:640px;margin:2rem auto;padding:0 1rem">
+<h1>You are being redirected</h1>
+<p>Destination:</p>
+<p style="word-break:break-all"><b>{shown}</b></p>
+<p>Redirecting in <span id="n">5</span> seconds.</p>
+<p><a href="{shown}" style="padding:.6rem 1rem;background:#2457c5;color:#fff;border-radius:8px;text-decoration:none">Continue now</a></p>
+<script>
+var url = {js_url}, left = 5;
+var t = setInterval(function () {{
+  left -= 1;
+  document.getElementById("n").textContent = left;
+  if (left <= 0) {{ clearInterval(t); window.location.href = url; }}
+}}, 1000);
+</script>
+</body>"""
+
+
 def page(con, message=""):
     rows = con.execute("SELECT id, url FROM links ORDER BY rowid DESC LIMIT 20").fetchall()
     items = "".join(
@@ -82,9 +107,13 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path.strip("/")
         if not path:
             return self.send_html(page(con))
-        row = con.execute("SELECT url FROM links WHERE id = ?", (path,)).fetchone()
+        client_side = path.startswith("c/")  # /c/<ID> = client-side redirect demo
+        link_id = path[2:] if client_side else path
+        row = con.execute("SELECT url FROM links WHERE id = ?", (link_id,)).fetchone()
         if row is None:
             return self.send_html("<h1>Not found</h1>", 404)
+        if client_side:
+            return self.send_html(redirect_page(row[0]))
         self.send_response(302)  # 302 = temporary redirect; 301 would be permanent
         self.send_header("Location", row[0])
         self.end_headers()
@@ -102,10 +131,13 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get("Host", f"localhost:{PORT}")
         scheme = self.headers.get("X-Forwarded-Proto", "http")
         link = f"{scheme}://{host}/{short}"
-        self.send_html(page(con, f'Short link: <a href="/{short}">{link}</a>'))
+        msg = (
+            f'Server-side (302): <a href="/{short}">{link}</a><br>'
+            f'Client-side (JavaScript): <a href="/c/{short}">{scheme}://{host}/c/{short}</a>'
+        )
+        self.send_html(page(con, msg))
 
 
 if __name__ == "__main__":
     print(f"Running on http://localhost:{PORT}  (Ctrl+C to stop)")
     HTTPServer(("", PORT), Handler).serve_forever()
-  
